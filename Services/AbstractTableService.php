@@ -87,25 +87,29 @@ abstract class AbstractTableService implements TableServiceInterface
      */
     public function exportAsCsv(TableInterface $table, Request $request)
     {
+        $stream = fopen('php://memory', 'w+');
         // execute query with filters, without pagination, only scalar results
         $rows = $this->getRows($table, $request, false, false);
-
-        $buffer = '';
         // first line: keys
         if (count($rows) > 0) {
-            foreach ($table->getColumns() as $column) {
-                $buffer .= $column->getName().';';
-            }
-            $buffer .= "\n";
+            $headers = array_map(function($column){
+                return $column->getName();
+            }, $table->getColumns());
+
+            fputcsv($stream, $headers, ';');
         }
 
         foreach ($rows as $row) {
-            foreach ($table->getColumns() as $column) {
-                $buffer .= $column->getExportValue($row, $rows).';';
-            }
-            $buffer .= "\n";
+            $line = array_map(function($column) use ($row, $rows){
+                return $column->getExportValue($row, $rows);
+            }, $table->getColumns());
+
+            fputcsv($stream, $line, ';');
         }
 
+        rewind($stream);
+        $buffer = stream_get_contents($stream);
+        fclose($stream);
         return $buffer;
     }
 
